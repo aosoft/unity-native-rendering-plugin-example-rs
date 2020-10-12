@@ -4,8 +4,15 @@ version = "0.4.0"
 authors = ["Yasuhiro Taniuchi"]
 edition = "2018"
 
+[lib]
+crate-type = ["cdylib"]
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 unity-native-plugin = { path = "../unity-native-plugin-rs/unity-native-plugin", features = ["d3d11", "d3d12"] }
 unity-native-plugin-vulkan = { path = "../unity-native-plugin-rs/unity-native-plugin-vulkan" }
+winapi = { version = "0.3.9", features = ["winuser", "d3d11", "dxgiformat"] }
+wio = "0.2.2"
+d3d12 = "0.3.2"
+ash = "0.31.0"
