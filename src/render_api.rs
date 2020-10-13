@@ -10,7 +10,14 @@ pub struct VertexBuffer {
     pub size: i32,
 }
 
-pub trait RenderAPI {
+pub struct MyVertex {
+    pub x: f32,
+    pub y: f32,
+    pub z: f32,
+    pub color: u32,
+}
+
+pub trait RenderAPI: Drop {
     fn process_device_event(
         &self,
         event_type: unity_native_plugin::graphics::GfxDeviceEventType,
@@ -23,7 +30,7 @@ pub trait RenderAPI {
         &self,
         world_matrix: [f32; 16],
         triangle_count: i32,
-        vertices_float3_byte4: &[f32],
+        vertices_float3_byte4: &[MyVertex],
     );
 
     fn begin_modify_texture(

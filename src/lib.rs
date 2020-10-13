@@ -1,6 +1,6 @@
 mod render_api;
 
-static mut graphics: Option::<unity_native_plugin::graphics::UnityGraphics> = None;
+static mut graphics: Option<unity_native_plugin::graphics::UnityGraphics> = None;
 
 unity_native_plugin::unity_native_plugin_entry_point! {
     fn unity_plugin_load(interfaces: &unity_native_plugin::interface::UnityInterfaces) {
@@ -96,8 +96,9 @@ extern "system" fn SetMeshBuffersFromUnity(
     }
 }
 
-static mut current_api: Option::<Box<dyn render_api::RenderAPI>> = None;
-static mut device_type: unity_native_plugin::graphics::GfxRenderer = unity_native_plugin::graphics::GfxRenderer::Null;
+static mut current_api: Option<Box<dyn render_api::RenderAPI>> = None;
+static mut device_type: unity_native_plugin::graphics::GfxRenderer =
+    unity_native_plugin::graphics::GfxRenderer::Null;
 
 extern "system" fn on_grapihcs_device_event(
     event_type: unity_native_plugin::graphics::GfxDeviceEventType,
@@ -111,7 +112,10 @@ extern "system" fn on_grapihcs_device_event(
 
     unsafe {
         if let Some(api) = current_api.as_ref() {
-            api.process_device_event(event_type, unity_native_plugin::interface::UnityInterfaces::get());
+            api.process_device_event(
+                event_type,
+                unity_native_plugin::interface::UnityInterfaces::get(),
+            );
         }
     }
 
@@ -120,5 +124,46 @@ extern "system" fn on_grapihcs_device_event(
             device_type = unity_native_plugin::graphics::GfxRenderer::Null;
             current_api = None;
         }
+    }
+}
+
+fn draw_colored_triangle() {
+    let verts = [
+        render_api::MyVertex {
+            x: -0.5,
+            y: -0.25,
+            z: 0.0,
+            color: 0xFFff0000,
+        },
+        render_api::MyVertex {
+            x: 0.5,
+            y: -0.25,
+            z: 0.0,
+            color: 0xFF00ff00,
+        },
+        render_api::MyVertex {
+            x: 0.0,
+            y: 0.5,
+            z: 0.0,
+            color: 0xFF0000ff,
+        },
+    ];
+
+    if let Some(api) = unsafe { current_api.as_ref() } {
+        let phi = unsafe { time };
+        let cosPhi = phi.cos();
+        let sinPhi = phi.sin();
+        let depth = 0.7;
+        let finalDepth = if api.get_uses_reverse_z() {
+            1.0 - depth
+        } else {
+            depth
+        };
+        let worldMatrix = [
+            cosPhi, -sinPhi, 0.0, 0.0, sinPhi, cosPhi, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0,
+            finalDepth, 1.0,
+        ];
+
+        api.draw_simple_triangles(worldMatrix, 1, &verts);
     }
 }
