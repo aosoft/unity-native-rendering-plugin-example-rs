@@ -1,12 +1,23 @@
 mod render_api;
 
+static mut graphics: Option::<unity_native_plugin::graphics::UnityGraphics> = None;
+
 unity_native_plugin::unity_native_plugin_entry_point! {
     fn unity_plugin_load(interfaces: &unity_native_plugin::interface::UnityInterfaces) {
-        let graphics = interfaces.interface::<unity_native_plugin::graphics::UnityGraphics>().unwrap();
-        graphics.register_device_event_callback(Some(on_grapihcs_device_event));
+        unsafe {
+            graphics = interfaces.interface::<unity_native_plugin::graphics::UnityGraphics>();
+            if let Some(g) = &graphics {
+                g.register_device_event_callback(Some(on_grapihcs_device_event));
+            }
+        }
         on_grapihcs_device_event(unity_native_plugin::graphics::GfxDeviceEventType::Initialize);
     }
     fn unity_plugin_unload() {
+        unsafe {
+            if let Some(g) = &graphics {
+                g.unregister_device_event_callback(Some(on_grapihcs_device_event));
+            }
+        }
     }
 }
 
@@ -61,20 +72,53 @@ extern "system" fn SetMeshBuffersFromUnity(
         let mut source_vertices = source_vertices;
         let mut source_normals = source_normals;
         let mut source_uv = source_uv;
-        for i in 0..vertex_count {
+        for _ in 0..vertex_count {
             let vertex = MeshVertex {
-                pos: [*source_vertices, *source_vertices.offset(1), *source_vertices.offset(2)],
-                normal: [*source_normals, *source_normals.offset(1), *source_normals.offset(2)],
+                pos: [
+                    *source_vertices,
+                    *source_vertices.offset(1),
+                    *source_vertices.offset(2),
+                ],
+                normal: [
+                    *source_normals,
+                    *source_normals.offset(1),
+                    *source_normals.offset(2),
+                ],
                 color: [0.0; 4],
-                uv: [*source_uv, *source_uv.offset(1)]
+                uv: [*source_uv, *source_uv.offset(1)],
             };
             source_vertices = source_vertices.offset(3);
             source_normals = source_normals.offset(3);
             source_uv = source_uv.offset(2);
+
+            vertex_source.push(vertex);
         }
     }
 }
 
-extern "system" fn on_grapihcs_device_event(event_type: unity_native_plugin::graphics::GfxDeviceEventType) {
+static mut current_api: Option::<Box<dyn render_api::RenderAPI>> = None;
+static mut device_type: unity_native_plugin::graphics::GfxRenderer = unity_native_plugin::graphics::GfxRenderer::Null;
 
+extern "system" fn on_grapihcs_device_event(
+    event_type: unity_native_plugin::graphics::GfxDeviceEventType,
+) {
+    if event_type == unity_native_plugin::graphics::GfxDeviceEventType::Initialize {
+        unsafe {
+            device_type = graphics.as_ref().unwrap().renderer();
+            current_api = render_api::create_render_api(device_type);
+        }
+    }
+
+    unsafe {
+        if let Some(api) = current_api.as_ref() {
+            api.process_device_event(event_type, unity_native_plugin::interface::UnityInterfaces::get());
+        }
+    }
+
+    if event_type == unity_native_plugin::graphics::GfxDeviceEventType::Shutdown {
+        unsafe {
+            device_type = unity_native_plugin::graphics::GfxRenderer::Null;
+            current_api = None;
+        }
+    }
 }
