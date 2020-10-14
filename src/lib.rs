@@ -48,10 +48,10 @@ static mut vertex_buffer_vertex_count: i32 = 0;
 
 #[repr(C)]
 struct MeshVertex {
-    pos: [f32; 3],
-    normal: [f32; 3],
-    color: [f32; 4],
-    uv: [f32; 2],
+    pub pos: [f32; 3],
+    pub normal: [f32; 3],
+    pub color: [f32; 4],
+    pub uv: [f32; 2],
 }
 
 static mut vertex_source: Vec<MeshVertex> = Vec::<MeshVertex>::new();
@@ -165,5 +165,86 @@ fn draw_colored_triangle() {
         ];
 
         api.draw_simple_triangles(worldMatrix, 1, &verts);
+    }
+}
+
+fn modify_texture_pixels() {
+    let handle = unsafe { texture_handle };
+    let width = unsafe { texture_width };
+    let height = unsafe { texture_height };
+
+    if handle.is_null() {
+        return;
+    }
+
+    if let Some(api) = unsafe { current_api.as_ref() } {
+        let buffer = api.begin_modify_texture(handle, width, height);
+        if buffer.ptr.is_null() {
+            return;
+        }
+
+        let t = unsafe { time } * 4.0;
+
+        unsafe {
+            let mut dst = buffer.ptr as *mut u8;
+            for y in 0..height {
+                let mut ptr = dst;
+                for x in 0..width {
+                    let vv: i32 = ((127.0 + (127.0 * (x as f32 / 7.0 + t).sin()))
+                        + (127.0 + (127.0 * (y as f32 / 5.0 - t).sin()))
+                        + (127.0 + (127.0 * ((x + y) as f32 / 6.0 - t).sin()))
+                        + (127.0 + (127.0 * (((x * x + y * y) as f32).sqrt() / 4.0 - t).sin())))
+                        as i32
+                        / 4;
+                    *ptr = vv as u8;
+                    ptr = ptr.offset(1);
+                    *ptr = vv as u8;
+                    ptr = ptr.offset(1);
+                    *ptr = vv as u8;
+                    ptr = ptr.offset(1);
+                    *ptr = vv as u8;
+                    ptr = ptr.offset(1);
+                }
+
+                dst = dst.offset(buffer.row_pitch as isize);
+            }
+        }
+
+        api.end_modify_texture(handle, width, height, buffer);
+    }
+}
+
+fn modify_vertex_buffer() {
+    let handle = unsafe { vertex_buffer_handle };
+    let vertex_count = unsafe { vertex_buffer_vertex_count };
+    if let Some(api) = unsafe { current_api.as_ref() } {
+        let buffer = api.begin_modify_vertex_buffer(handle);
+        if buffer.ptr.is_null() {
+            return;
+        }
+        let vertex_stride = buffer.size / vertex_count;
+        let t = unsafe { time } * 3.0;
+
+        unsafe {
+            let mut buffer_ptr = buffer.ptr as *mut u8;
+            for i in 0..vertex_count {
+                let src = &vertex_source[i as usize];
+                let mut dst = &mut *(buffer_ptr as *mut MeshVertex);
+                dst.pos[0] = src.pos[0];
+                dst.pos[1] = src.pos[1]
+                    + (src.pos[0] * 1.1 + t).sin() * 0.4
+                    + (src.pos[2] * 0.9 - t).sin() * 0.3;
+                dst.pos[2] = src.pos[2];
+                dst.normal[0] = src.normal[0];
+                dst.normal[1] = src.normal[1];
+                dst.normal[2] = src.normal[2];
+                dst.uv[0] = src.uv[0];
+                dst.uv[1] = src.uv[1];
+
+                buffer_ptr = buffer_ptr.offset(vertex_stride as isize);
+            }
+        }
+
+        api.end_modify_vertex_buffer(handle);
     }
 }
