@@ -1,50 +1,54 @@
 mod render_api;
+mod render_api_vulkan;
 
-static mut graphics: Option<unity_native_plugin::graphics::UnityGraphics> = None;
+static mut GRAPHICS: Option<unity_native_plugin::graphics::UnityGraphics> = None;
 
 unity_native_plugin::unity_native_plugin_entry_point! {
     fn unity_plugin_load(interfaces: &unity_native_plugin::interface::UnityInterfaces) {
         unsafe {
-            graphics = interfaces.interface::<unity_native_plugin::graphics::UnityGraphics>();
-            if let Some(g) = &graphics {
+            GRAPHICS = interfaces.interface::<unity_native_plugin::graphics::UnityGraphics>();
+            if let Some(g) = &GRAPHICS {
                 g.register_device_event_callback(Some(on_grapihcs_device_event));
+                if g.renderer() == unity_native_plugin::graphics::GfxRenderer::Vulkan {
+                    render_api_vulkan::on_plugin_load(interfaces);
+                }
             }
         }
         on_grapihcs_device_event(unity_native_plugin::graphics::GfxDeviceEventType::Initialize);
     }
     fn unity_plugin_unload() {
         unsafe {
-            if let Some(g) = &graphics {
+            if let Some(g) = &GRAPHICS {
                 g.unregister_device_event_callback(Some(on_grapihcs_device_event));
             }
         }
     }
 }
 
-static mut time: f32 = 0.0;
+static mut TIME: f32 = 0.0;
 
 #[allow(non_snake_case)]
-extern "system" fn SetTimeFromUnity(t: f32) {
+pub extern "system" fn SetTimeFromUnity(t: f32) {
     unsafe {
-        time = t;
+        TIME = t;
     }
 }
 
-static mut texture_handle: render_api::Handle = std::ptr::null_mut();
-static mut texture_width: i32 = 0;
-static mut texture_height: i32 = 0;
+static mut TEXTURE_HANDLE: render_api::Handle = std::ptr::null_mut();
+static mut TEXTURE_WIDTTH: i32 = 0;
+static mut TEXTURE_HEIGHT: i32 = 0;
 
 #[allow(non_snake_case)]
-extern "system" fn SetTextureFromUnity(handle: render_api::Handle, w: i32, h: i32) {
+pub extern "system" fn SetTextureFromUnity(handle: render_api::Handle, w: i32, h: i32) {
     unsafe {
-        texture_handle = handle;
-        texture_width = w;
-        texture_height = h;
+        TEXTURE_HANDLE = handle;
+        TEXTURE_WIDTTH = w;
+        TEXTURE_HEIGHT = h;
     }
 }
 
-static mut vertex_buffer_handle: render_api::Handle = std::ptr::null_mut();
-static mut vertex_buffer_vertex_count: i32 = 0;
+static mut VERTEX_BUFFER_HANDLE: render_api::Handle = std::ptr::null_mut();
+static mut VERTEX_BUFFER_VERTEX_COUNT: i32 = 0;
 
 #[repr(C)]
 struct MeshVertex {
@@ -54,10 +58,10 @@ struct MeshVertex {
     pub uv: [f32; 2],
 }
 
-static mut vertex_source: Vec<MeshVertex> = Vec::<MeshVertex>::new();
+static mut VERTEX_SOURCE: Vec<MeshVertex> = Vec::<MeshVertex>::new();
 
 #[allow(non_snake_case)]
-extern "system" fn SetMeshBuffersFromUnity(
+pub extern "system" fn SetMeshBuffersFromUnity(
     handle: render_api::Handle,
     vertex_count: i32,
     source_vertices: *const f32,
@@ -65,10 +69,10 @@ extern "system" fn SetMeshBuffersFromUnity(
     source_uv: *const f32,
 ) {
     unsafe {
-        vertex_buffer_handle = handle;
-        vertex_buffer_vertex_count = vertex_count;
+        VERTEX_BUFFER_HANDLE = handle;
+        VERTEX_BUFFER_VERTEX_COUNT = vertex_count;
 
-        vertex_source = Vec::<MeshVertex>::with_capacity(vertex_count as usize);
+        VERTEX_SOURCE = Vec::<MeshVertex>::with_capacity(vertex_count as usize);
         let mut source_vertices = source_vertices;
         let mut source_normals = source_normals;
         let mut source_uv = source_uv;
@@ -91,13 +95,13 @@ extern "system" fn SetMeshBuffersFromUnity(
             source_normals = source_normals.offset(3);
             source_uv = source_uv.offset(2);
 
-            vertex_source.push(vertex);
+            VERTEX_SOURCE.push(vertex);
         }
     }
 }
 
-static mut current_api: Option<Box<dyn render_api::RenderAPI>> = None;
-static mut device_type: unity_native_plugin::graphics::GfxRenderer =
+static mut CURRENT_API: Option<Box<dyn render_api::RenderAPI>> = None;
+static mut DEVICE_TYPE: unity_native_plugin::graphics::GfxRenderer =
     unity_native_plugin::graphics::GfxRenderer::Null;
 
 extern "system" fn on_grapihcs_device_event(
@@ -105,13 +109,13 @@ extern "system" fn on_grapihcs_device_event(
 ) {
     if event_type == unity_native_plugin::graphics::GfxDeviceEventType::Initialize {
         unsafe {
-            device_type = graphics.as_ref().unwrap().renderer();
-            current_api = render_api::create_render_api(device_type);
+            DEVICE_TYPE = GRAPHICS.as_ref().unwrap().renderer();
+            CURRENT_API = render_api::create_render_api(DEVICE_TYPE);
         }
     }
 
     unsafe {
-        if let Some(api) = current_api.as_ref() {
+        if let Some(api) = CURRENT_API.as_ref() {
             api.process_device_event(
                 event_type,
                 unity_native_plugin::interface::UnityInterfaces::get(),
@@ -121,8 +125,8 @@ extern "system" fn on_grapihcs_device_event(
 
     if event_type == unity_native_plugin::graphics::GfxDeviceEventType::Shutdown {
         unsafe {
-            device_type = unity_native_plugin::graphics::GfxRenderer::Null;
-            current_api = None;
+            DEVICE_TYPE = unity_native_plugin::graphics::GfxRenderer::Null;
+            CURRENT_API = None;
         }
     }
 }
@@ -149,41 +153,41 @@ fn draw_colored_triangle() {
         },
     ];
 
-    if let Some(api) = unsafe { current_api.as_ref() } {
-        let phi = unsafe { time };
-        let cosPhi = phi.cos();
-        let sinPhi = phi.sin();
+    if let Some(api) = unsafe { CURRENT_API.as_ref() } {
+        let phi = unsafe { TIME };
+        let cos_phi = phi.cos();
+        let sin_phi = phi.sin();
         let depth = 0.7;
-        let finalDepth = if api.get_uses_reverse_z() {
+        let final_depth = if api.get_uses_reverse_z() {
             1.0 - depth
         } else {
             depth
         };
-        let worldMatrix = [
-            cosPhi, -sinPhi, 0.0, 0.0, sinPhi, cosPhi, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0,
-            finalDepth, 1.0,
+        let world_matrix = [
+            cos_phi, -sin_phi, 0.0, 0.0, sin_phi, cos_phi, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0,
+            final_depth, 1.0,
         ];
 
-        api.draw_simple_triangles(worldMatrix, 1, &verts);
+        api.draw_simple_triangles(world_matrix, 1, &verts);
     }
 }
 
 fn modify_texture_pixels() {
-    let handle = unsafe { texture_handle };
-    let width = unsafe { texture_width };
-    let height = unsafe { texture_height };
+    let handle = unsafe { TEXTURE_HANDLE };
+    let width = unsafe { TEXTURE_WIDTTH };
+    let height = unsafe { TEXTURE_HEIGHT };
 
     if handle.is_null() {
         return;
     }
 
-    if let Some(api) = unsafe { current_api.as_ref() } {
+    if let Some(api) = unsafe { CURRENT_API.as_ref() } {
         let buffer = api.begin_modify_texture(handle, width, height);
         if buffer.ptr.is_null() {
             return;
         }
 
-        let t = unsafe { time } * 4.0;
+        let t = unsafe { TIME } * 4.0;
 
         unsafe {
             let mut dst = buffer.ptr as *mut u8;
@@ -215,20 +219,20 @@ fn modify_texture_pixels() {
 }
 
 fn modify_vertex_buffer() {
-    let handle = unsafe { vertex_buffer_handle };
-    let vertex_count = unsafe { vertex_buffer_vertex_count };
-    if let Some(api) = unsafe { current_api.as_ref() } {
+    let handle = unsafe { VERTEX_BUFFER_HANDLE };
+    let vertex_count = unsafe { VERTEX_BUFFER_VERTEX_COUNT };
+    if let Some(api) = unsafe { CURRENT_API.as_ref() } {
         let buffer = api.begin_modify_vertex_buffer(handle);
         if buffer.ptr.is_null() {
             return;
         }
         let vertex_stride = buffer.size / vertex_count;
-        let t = unsafe { time } * 3.0;
+        let t = unsafe { TIME } * 3.0;
 
         unsafe {
             let mut buffer_ptr = buffer.ptr as *mut u8;
             for i in 0..vertex_count {
-                let src = &vertex_source[i as usize];
+                let src = &VERTEX_SOURCE[i as usize];
                 let mut dst = &mut *(buffer_ptr as *mut MeshVertex);
                 dst.pos[0] = src.pos[0];
                 dst.pos[1] = src.pos[1]
@@ -247,4 +251,19 @@ fn modify_vertex_buffer() {
 
         api.end_modify_vertex_buffer(handle);
     }
+}
+
+extern "system" fn on_render_event(_: std::os::raw::c_int) {
+    if unsafe { CURRENT_API.is_none() } {
+        return;
+    }
+
+    draw_colored_triangle();
+    modify_texture_pixels();
+    modify_vertex_buffer();
+}
+
+#[allow(non_snake_case)]
+pub extern "system" fn GetRenderEventFunc() -> unity_native_plugin::graphics::RenderingEvent {
+    Some(on_render_event)
 }
