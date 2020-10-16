@@ -1,5 +1,6 @@
 mod render_api;
 mod render_api_vulkan;
+mod vulkan_api;
 
 static mut GRAPHICS: Option<unity_native_plugin::graphics::UnityGraphics> = None;
 
