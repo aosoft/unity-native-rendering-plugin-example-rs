@@ -19,7 +19,7 @@ pub struct MyVertex {
 
 pub trait RenderAPI: Drop {
     fn process_device_event(
-        &self,
+        &mut self,
         event_type: unity_native_plugin::graphics::GfxDeviceEventType,
         interfaces: &unity_native_plugin::interface::UnityInterfaces,
     );

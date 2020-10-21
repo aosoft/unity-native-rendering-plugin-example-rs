@@ -3,7 +3,10 @@ mod render_api;
 #[cfg(target_os = "windows")]
 mod render_api_d3d11;
 
+#[cfg(target_feature = "vulkan")]
 mod render_api_vulkan;
+
+#[cfg(target_feature = "vulkan")]
 mod vulkan_api;
 
 static mut GRAPHICS: Option<unity_native_plugin::graphics::UnityGraphics> = None;
@@ -14,6 +17,8 @@ unity_native_plugin::unity_native_plugin_entry_point! {
             GRAPHICS = interfaces.interface::<unity_native_plugin::graphics::UnityGraphics>();
             if let Some(g) = &GRAPHICS {
                 g.register_device_event_callback(Some(on_grapihcs_device_event));
+
+                #[cfg(target_feature = "vulkan")]
                 if g.renderer() == unity_native_plugin::graphics::GfxRenderer::Vulkan {
                     render_api_vulkan::on_plugin_load(interfaces);
                 }
@@ -120,7 +125,7 @@ extern "system" fn on_grapihcs_device_event(
     }
 
     unsafe {
-        if let Some(api) = CURRENT_API.as_ref() {
+        if let Some(api) = CURRENT_API.as_mut() {
             api.process_device_event(
                 event_type,
                 unity_native_plugin::interface::UnityInterfaces::get(),
