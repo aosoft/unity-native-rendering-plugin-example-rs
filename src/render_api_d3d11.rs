@@ -29,6 +29,24 @@ fn check_hr(hr: HRESULT) -> Result<(), HRESULT> {
     }
 }
 
+unsafe fn get_comptr<T: winapi::Interface, F: FnOnce(*mut *mut T)>(f: F) -> ComPtr<T> {
+    let mut tmp: *mut T = std::ptr::null_mut();
+    f(&mut tmp);
+    ComPtr::<T>::from_raw(tmp)
+}
+
+unsafe fn get_comptr_with_result<T: winapi::Interface, F: FnOnce(*mut *mut T) -> HRESULT>(
+    f: F,
+) -> Result<ComPtr<T>, HRESULT> {
+    let mut tmp: *mut T = std::ptr::null_mut();
+    let hr = f(&mut tmp);
+    if SUCCEEDED(hr) {
+        Ok(ComPtr::<T>::from_raw(tmp))
+    } else {
+        Err(hr)
+    }
+}
+
 impl Drop for RenderAPID3D11 {
     fn drop(&mut self) {}
 }
@@ -47,12 +65,19 @@ impl crate::render_api::RenderAPI for RenderAPID3D11 {
                 unsafe { self.device.as_ref().unwrap().AddRef() };
                 self.create_resources();
             }
+            GfxDeviceEventType::Shutdown => self.release_resources(),
             _ => {}
         }
     }
 
     fn get_uses_reverse_z(&self) -> bool {
-        unimplemented!()
+        unsafe {
+            if let Some(device) = self.device.as_ref() {
+                device.GetFeatureLevel() >= winapi::um::d3dcommon::D3D_FEATURE_LEVEL_10_0
+            } else {
+                false
+            }
+        }
     }
 
     fn draw_simple_triangles(
@@ -61,7 +86,7 @@ impl crate::render_api::RenderAPI for RenderAPID3D11 {
         triangle_count: i32,
         vertices_float3_byte4: &[MyVertex],
     ) {
-        unimplemented!()
+        if let Some(device) = &self.device {}
     }
 
     fn begin_modify_texture(
@@ -116,10 +141,9 @@ impl RenderAPID3D11 {
                     BindFlags: D3D11_BIND_VERTEX_BUFFER,
                     ..std::mem::zeroed()
                 };
-
-                let mut buffer: *mut ID3D11Buffer = std::ptr::null_mut();
-                check_hr(device.CreateBuffer(&desc, std::ptr::null(), &mut buffer as _))?;
-                self.vb = Some(ComPtr::from_raw(buffer));
+                self.vb = Some(get_comptr_with_result(|ret| {
+                    device.CreateBuffer(&desc, std::ptr::null(), ret)
+                })?);
 
                 let desc = D3D11_BUFFER_DESC {
                     Usage: D3D11_USAGE_DEFAULT,
@@ -128,28 +152,27 @@ impl RenderAPID3D11 {
                     CPUAccessFlags: 0,
                     ..std::mem::zeroed()
                 };
+                self.cb = Some(get_comptr_with_result(|ret| {
+                    device.CreateBuffer(&desc, std::ptr::null(), ret)
+                })?);
 
-                let mut buffer: *mut ID3D11Buffer = std::ptr::null_mut();
-                check_hr(device.CreateBuffer(&desc, std::ptr::null(), &mut buffer as _))?;
-                self.cb = Some(ComPtr::from_raw(buffer));
+                self.vertex_shader = Some(get_comptr_with_result(|ret| {
+                    device.CreateVertexShader(
+                        VERTEX_SHADER_CODE.as_ptr() as _,
+                        VERTEX_SHADER_CODE.len(),
+                        std::ptr::null_mut(),
+                        ret,
+                    )
+                })?);
 
-                let mut shader: *mut ID3D11VertexShader = std::ptr::null_mut();
-                check_hr(device.CreateVertexShader(
-                    VERTEX_SHADER_CODE.as_ptr() as _,
-                    VERTEX_SHADER_CODE.len(),
-                    std::ptr::null_mut(),
-                    &mut shader,
-                ))?;
-                self.vertex_shader = Some(ComPtr::from_raw(shader));
-
-                let mut shader: *mut ID3D11PixelShader = std::ptr::null_mut();
-                check_hr(device.CreatePixelShader(
-                    PIXEL_SHADER_CODE.as_ptr() as _,
-                    PIXEL_SHADER_CODE.len(),
-                    std::ptr::null_mut(),
-                    &mut shader,
-                ))?;
-                self.pixel_shader = Some(ComPtr::from_raw(shader));
+                self.pixel_shader = Some(get_comptr_with_result(|ret| {
+                    device.CreatePixelShader(
+                        PIXEL_SHADER_CODE.as_ptr() as _,
+                        PIXEL_SHADER_CODE.len(),
+                        std::ptr::null_mut(),
+                        ret,
+                    )
+                })?);
 
                 if let Some(vs) = &self.vertex_shader {
                     let desc = [
@@ -173,15 +196,15 @@ impl RenderAPID3D11 {
                         },
                     ];
 
-                    let mut layout: *mut ID3D11InputLayout = std::ptr::null_mut();
-                    check_hr(device.CreateInputLayout(
-                        desc.as_ptr(),
-                        desc.len() as _,
-                        VERTEX_SHADER_CODE.as_ptr() as _,
-                        VERTEX_SHADER_CODE.len(),
-                        &mut layout,
-                    ))?;
-                    self.input_layout = Some(ComPtr::from_raw(layout));
+                    self.input_layout = Some(get_comptr_with_result(|ret| {
+                        device.CreateInputLayout(
+                            desc.as_ptr(),
+                            desc.len() as _,
+                            VERTEX_SHADER_CODE.as_ptr() as _,
+                            VERTEX_SHADER_CODE.len(),
+                            ret,
+                        )
+                    })?);
 
                     let desc = D3D11_RASTERIZER_DESC {
                         FillMode: D3D11_FILL_SOLID,
@@ -189,9 +212,9 @@ impl RenderAPID3D11 {
                         DepthClipEnable: TRUE,
                         ..std::mem::zeroed()
                     };
-                    let mut rs: *mut ID3D11RasterizerState = std::ptr::null_mut();
-                    check_hr(device.CreateRasterizerState(&desc, &mut rs))?;
-                    self.rasterizer_state = Some(ComPtr::from_raw(rs));
+                    self.rasterizer_state = Some(get_comptr_with_result(|ret| {
+                        device.CreateRasterizerState(&desc, ret)
+                    })?);
 
                     let desc = D3D11_DEPTH_STENCIL_DESC {
                         DepthEnable: TRUE,
@@ -203,9 +226,9 @@ impl RenderAPID3D11 {
                         },
                         ..std::mem::zeroed()
                     };
-                    let mut ds: *mut ID3D11DepthStencilState = std::ptr::null_mut();
-                    check_hr(device.CreateDepthStencilState(&desc, &mut ds))?;
-                    self.depth_stencil_state = Some(ComPtr::from_raw(ds));
+                    self.depth_stencil_state = Some(get_comptr_with_result(|ret| {
+                        device.CreateDepthStencilState(&desc, ret)
+                    })?);
 
                     let mut desc: D3D11_BLEND_DESC = std::mem::zeroed();
                     desc.RenderTarget[0] = D3D11_RENDER_TARGET_BLEND_DESC {
@@ -213,15 +236,19 @@ impl RenderAPID3D11 {
                         RenderTargetWriteMask: 0xf,
                         ..std::mem::zeroed()
                     };
-                    let mut bs: *mut ID3D11BlendState = std::ptr::null_mut();
-                    check_hr(device.CreateBlendState(&desc, &mut bs))?;
-                    self.blend_state = Some(ComPtr::from_raw(bs));
+                    self.blend_state = Some(get_comptr_with_result(|ret| {
+                        device.CreateBlendState(&desc, ret)
+                    })?);
                 }
             }
             Ok(())
         } else {
             Err(S_FALSE)
         }
+    }
+
+    fn release_resources(&mut self) {
+        std::mem::drop(self);
     }
 }
 
