@@ -196,14 +196,14 @@ fn modify_texture_pixels() {
 
     if let Some(api) = unsafe { CURRENT_API.as_ref() } {
         let buffer = api.begin_modify_texture(handle, width, height);
-        if buffer.ptr.is_null() {
+        if buffer.ptr().is_null() {
             return;
         }
 
         let t = unsafe { TIME } * 4.0;
 
         unsafe {
-            let mut dst = buffer.ptr as *mut u8;
+            let mut dst = buffer.ptr() as *mut u8;
             for y in 0..height {
                 let mut ptr = dst;
                 for x in 0..width {
@@ -223,7 +223,7 @@ fn modify_texture_pixels() {
                     ptr = ptr.offset(1);
                 }
 
-                dst = dst.offset(buffer.row_pitch as isize);
+                dst = dst.offset(buffer.row_pitch() as isize);
             }
         }
 
@@ -236,14 +236,14 @@ fn modify_vertex_buffer() {
     let vertex_count = unsafe { VERTEX_BUFFER_VERTEX_COUNT };
     if let Some(api) = unsafe { CURRENT_API.as_ref() } {
         let buffer = api.begin_modify_vertex_buffer(handle);
-        if buffer.ptr.is_null() {
+        if buffer.ptr().is_null() {
             return;
         }
-        let vertex_stride = buffer.size / vertex_count;
+        let vertex_stride = buffer.size() / vertex_count;
         let t = unsafe { TIME } * 3.0;
 
         unsafe {
-            let mut buffer_ptr = buffer.ptr as *mut u8;
+            let mut buffer_ptr = buffer.ptr() as *mut u8;
             for i in 0..vertex_count {
                 let src = &VERTEX_SOURCE[i as usize];
                 let mut dst = &mut *(buffer_ptr as *mut MeshVertex);

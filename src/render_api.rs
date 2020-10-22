@@ -1,15 +1,16 @@
 pub type Handle = *mut std::ffi::c_void;
 
-pub struct TextureBuffer {
-    pub ptr: *mut std::ffi::c_void,
-    pub row_pitch: i32,
+pub trait TextureBuffer {
+    fn ptr(&self) -> *mut std::ffi::c_void;
+    fn row_pitch(&self) -> i32;
 }
 
-pub struct VertexBuffer {
-    pub ptr: *mut std::ffi::c_void,
-    pub size: i32,
+pub trait VertexBuffer {
+    fn ptr(&self) -> *mut std::ffi::c_void;
+    fn size(&self) -> i32;
 }
 
+#[repr(C)]
 pub struct MyVertex {
     pub x: f32,
     pub y: f32,
@@ -38,17 +39,17 @@ pub trait RenderAPI: Drop {
         texture_handle: Handle,
         texture_width: i32,
         texture_height: i32,
-    ) -> TextureBuffer;
+    ) -> Box<dyn TextureBuffer>;
 
     fn end_modify_texture(
         &self,
         texture_handle: Handle,
         texture_width: i32,
         texture_height: i32,
-        buffer: TextureBuffer,
+        buffer: Box<dyn TextureBuffer>,
     );
 
-    fn begin_modify_vertex_buffer(&self, buffer_handle: Handle) -> VertexBuffer;
+    fn begin_modify_vertex_buffer(&self, buffer_handle: Handle) -> Box<dyn VertexBuffer>;
 
     fn end_modify_vertex_buffer(&self, buffer_handle: Handle);
 }

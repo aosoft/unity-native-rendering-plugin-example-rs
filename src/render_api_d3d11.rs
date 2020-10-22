@@ -65,16 +65,16 @@ impl crate::render_api::RenderAPI for RenderAPID3D11 {
             unsafe {
                 let ctx = win_util::get_comptr(|ret| device.GetImmediateContext(ret));
 
-                ctx.OMSetDepthStencilState(self.depth_state.unwrap().as_raw(), 0);
-                ctx.RSSetState(self.rasterizer_state.unwrap().as_raw());
+                ctx.OMSetDepthStencilState(self.depth_state.as_ref().unwrap().as_raw(), 0);
+                ctx.RSSetState(self.rasterizer_state.as_ref().unwrap().as_raw());
                 ctx.OMSetBlendState(
-                    self.blend_state.unwrap().as_raw(),
+                    self.blend_state.as_ref().unwrap().as_raw(),
                     &[1.0, 1.0, 1.0, 1.0],
                     0xFFFFFFFF,
                 );
 
                 ctx.UpdateSubresource(
-                    self.cb.unwrap().as_raw() as _,
+                    self.cb.as_ref().unwrap().as_raw() as _,
                     0,
                     std::ptr::null(),
                     world_matrix.as_ptr() as _,
@@ -82,33 +82,35 @@ impl crate::render_api::RenderAPI for RenderAPID3D11 {
                     0,
                 );
 
-                ctx.VSSetConstantBuffers(0, 1, self.cb.unwrap().as_raw() as _);
-                ctx.VSSetShader(self.vertex_shader.unwrap().as_raw(), std::ptr::null(), 0);
-                ctx.PSSetShader(self.pixel_shader.unwrap().as_raw(), std::ptr::null(), 0);
+                ctx.VSSetConstantBuffers(0, 1, self.cb.as_ref().unwrap().as_raw() as _);
+                ctx.VSSetShader(
+                    self.vertex_shader.as_ref().unwrap().as_raw(),
+                    std::ptr::null(),
+                    0,
+                );
+                ctx.PSSetShader(
+                    self.pixel_shader.as_ref().unwrap().as_raw(),
+                    std::ptr::null(),
+                    0,
+                );
 
                 let vertex_size = 12 + 4;
                 ctx.UpdateSubresource(
-                    self.vb.unwrap().as_raw() as _,
+                    self.vb.as_ref().unwrap().as_raw() as _,
                     0,
                     std::ptr::null(),
-                    verticesFloat3Byte4,
+                    vertices_float3_byte4.as_ptr() as _,
                     (triangle_count * 3 * vertex_size) as u32,
                     0,
                 );
 
-                ctx.IASetInputLayout(self.input_layout.unwrap().as_raw());
+                ctx.IASetInputLayout(self.input_layout.as_ref().unwrap().as_raw());
                 ctx.IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-                let stride = vertex_size;
+                let stride = vertex_size as u32;
                 let offset = 0;
-                let buffers = [self.vb.unwrap().as_raw()];
-                ctx.IASetVertexBuffers(
-                    0,
-                    buffers.len() as u32,
-                    buffers.as_ptr(),
-                    (&stride).as_ptr(),
-                    &offset,
-                );
-                ctx.Draw(triangleCount * 3, 0);
+                let buffers = [self.vb.as_ref().unwrap().as_raw()];
+                ctx.IASetVertexBuffers(0, buffers.len() as u32, buffers.as_ptr(), &stride, &offset);
+                ctx.Draw((triangle_count * 3) as _, 0);
             }
         }
     }
@@ -118,7 +120,7 @@ impl crate::render_api::RenderAPI for RenderAPID3D11 {
         texture_handle: *mut c_void,
         texture_width: i32,
         texture_height: i32,
-    ) -> TextureBuffer {
+    ) -> Box<dyn TextureBuffer> {
         unimplemented!()
     }
 
@@ -127,12 +129,12 @@ impl crate::render_api::RenderAPI for RenderAPID3D11 {
         texture_handle: *mut c_void,
         texture_width: i32,
         texture_height: i32,
-        buffer: TextureBuffer,
+        buffer: Box<dyn TextureBuffer>,
     ) {
         unimplemented!()
     }
 
-    fn begin_modify_vertex_buffer(&self, buffer_handle: *mut c_void) -> VertexBuffer {
+    fn begin_modify_vertex_buffer(&self, buffer_handle: *mut c_void) -> Box<dyn VertexBuffer> {
         unimplemented!()
     }
 
