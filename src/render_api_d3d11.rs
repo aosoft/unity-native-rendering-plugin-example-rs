@@ -1,4 +1,5 @@
 use crate::render_api::{MyVertex, RenderAPI, TextureBuffer, VertexBuffer};
+use crate::win_util;
 use unity_native_plugin::graphics::GfxDeviceEventType;
 use unity_native_plugin::interface::UnityInterfaces;
 use winapi::_core::ffi::c_void;
@@ -6,6 +7,7 @@ use winapi::shared::dxgiformat::*;
 use winapi::shared::minwindef::*;
 use winapi::shared::winerror::*;
 use winapi::um::d3d11::*;
+use winapi::um::d3dcommon::*;
 use wio::com::ComPtr;
 
 pub struct RenderAPID3D11 {
@@ -17,34 +19,7 @@ pub struct RenderAPID3D11 {
     input_layout: Option<ComPtr<ID3D11InputLayout>>,
     rasterizer_state: Option<ComPtr<ID3D11RasterizerState>>,
     blend_state: Option<ComPtr<ID3D11BlendState>>,
-    depth_stencil_state: Option<ComPtr<ID3D11DepthStencilState>>,
-}
-
-#[inline]
-fn check_hr(hr: HRESULT) -> Result<(), HRESULT> {
-    if SUCCEEDED(hr) {
-        Ok(())
-    } else {
-        Err(hr)
-    }
-}
-
-unsafe fn get_comptr<T: winapi::Interface, F: FnOnce(*mut *mut T)>(f: F) -> ComPtr<T> {
-    let mut tmp: *mut T = std::ptr::null_mut();
-    f(&mut tmp);
-    ComPtr::<T>::from_raw(tmp)
-}
-
-unsafe fn get_comptr_with_result<T: winapi::Interface, F: FnOnce(*mut *mut T) -> HRESULT>(
-    f: F,
-) -> Result<ComPtr<T>, HRESULT> {
-    let mut tmp: *mut T = std::ptr::null_mut();
-    let hr = f(&mut tmp);
-    if SUCCEEDED(hr) {
-        Ok(ComPtr::<T>::from_raw(tmp))
-    } else {
-        Err(hr)
-    }
+    depth_state: Option<ComPtr<ID3D11DepthStencilState>>,
 }
 
 impl Drop for RenderAPID3D11 {
@@ -86,7 +61,56 @@ impl crate::render_api::RenderAPI for RenderAPID3D11 {
         triangle_count: i32,
         vertices_float3_byte4: &[MyVertex],
     ) {
-        if let Some(device) = &self.device {}
+        if let Some(device) = &self.device {
+            unsafe {
+                let ctx = win_util::get_comptr(|ret| device.GetImmediateContext(ret));
+
+                ctx.OMSetDepthStencilState(self.depth_state.unwrap().as_raw(), 0);
+                ctx.RSSetState(self.rasterizer_state.unwrap().as_raw());
+                ctx.OMSetBlendState(
+                    self.blend_state.unwrap().as_raw(),
+                    &[1.0, 1.0, 1.0, 1.0],
+                    0xFFFFFFFF,
+                );
+
+                ctx.UpdateSubresource(
+                    self.cb.unwrap().as_raw() as _,
+                    0,
+                    std::ptr::null(),
+                    world_matrix.as_ptr() as _,
+                    64,
+                    0,
+                );
+
+                ctx.VSSetConstantBuffers(0, 1, self.cb.unwrap().as_raw() as _);
+                ctx.VSSetShader(self.vertex_shader.unwrap().as_raw(), std::ptr::null(), 0);
+                ctx.PSSetShader(self.pixel_shader.unwrap().as_raw(), std::ptr::null(), 0);
+
+                let vertex_size = 12 + 4;
+                ctx.UpdateSubresource(
+                    self.vb.unwrap().as_raw() as _,
+                    0,
+                    std::ptr::null(),
+                    verticesFloat3Byte4,
+                    (triangle_count * 3 * vertex_size) as u32,
+                    0,
+                );
+
+                ctx.IASetInputLayout(self.input_layout.unwrap().as_raw());
+                ctx.IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+                let stride = vertex_size;
+                let offset = 0;
+                let buffers = [self.vb.unwrap().as_raw()];
+                ctx.IASetVertexBuffers(
+                    0,
+                    buffers.len() as u32,
+                    buffers.as_ptr(),
+                    (&stride).as_ptr(),
+                    &offset,
+                );
+                ctx.Draw(triangleCount * 3, 0);
+            }
+        }
     }
 
     fn begin_modify_texture(
@@ -128,7 +152,7 @@ impl RenderAPID3D11 {
             input_layout: None,
             rasterizer_state: None,
             blend_state: None,
-            depth_stencil_state: None,
+            depth_state: None,
         })
     }
 
@@ -141,7 +165,7 @@ impl RenderAPID3D11 {
                     BindFlags: D3D11_BIND_VERTEX_BUFFER,
                     ..std::mem::zeroed()
                 };
-                self.vb = Some(get_comptr_with_result(|ret| {
+                self.vb = Some(win_util::get_comptr_with_result(|ret| {
                     device.CreateBuffer(&desc, std::ptr::null(), ret)
                 })?);
 
@@ -152,11 +176,11 @@ impl RenderAPID3D11 {
                     CPUAccessFlags: 0,
                     ..std::mem::zeroed()
                 };
-                self.cb = Some(get_comptr_with_result(|ret| {
+                self.cb = Some(win_util::get_comptr_with_result(|ret| {
                     device.CreateBuffer(&desc, std::ptr::null(), ret)
                 })?);
 
-                self.vertex_shader = Some(get_comptr_with_result(|ret| {
+                self.vertex_shader = Some(win_util::get_comptr_with_result(|ret| {
                     device.CreateVertexShader(
                         VERTEX_SHADER_CODE.as_ptr() as _,
                         VERTEX_SHADER_CODE.len(),
@@ -165,7 +189,7 @@ impl RenderAPID3D11 {
                     )
                 })?);
 
-                self.pixel_shader = Some(get_comptr_with_result(|ret| {
+                self.pixel_shader = Some(win_util::get_comptr_with_result(|ret| {
                     device.CreatePixelShader(
                         PIXEL_SHADER_CODE.as_ptr() as _,
                         PIXEL_SHADER_CODE.len(),
@@ -196,7 +220,7 @@ impl RenderAPID3D11 {
                         },
                     ];
 
-                    self.input_layout = Some(get_comptr_with_result(|ret| {
+                    self.input_layout = Some(win_util::get_comptr_with_result(|ret| {
                         device.CreateInputLayout(
                             desc.as_ptr(),
                             desc.len() as _,
@@ -212,7 +236,7 @@ impl RenderAPID3D11 {
                         DepthClipEnable: TRUE,
                         ..std::mem::zeroed()
                     };
-                    self.rasterizer_state = Some(get_comptr_with_result(|ret| {
+                    self.rasterizer_state = Some(win_util::get_comptr_with_result(|ret| {
                         device.CreateRasterizerState(&desc, ret)
                     })?);
 
@@ -226,7 +250,7 @@ impl RenderAPID3D11 {
                         },
                         ..std::mem::zeroed()
                     };
-                    self.depth_stencil_state = Some(get_comptr_with_result(|ret| {
+                    self.depth_state = Some(win_util::get_comptr_with_result(|ret| {
                         device.CreateDepthStencilState(&desc, ret)
                     })?);
 
@@ -236,7 +260,7 @@ impl RenderAPID3D11 {
                         RenderTargetWriteMask: 0xf,
                         ..std::mem::zeroed()
                     };
-                    self.blend_state = Some(get_comptr_with_result(|ret| {
+                    self.blend_state = Some(win_util::get_comptr_with_result(|ret| {
                         device.CreateBlendState(&desc, ret)
                     })?);
                 }

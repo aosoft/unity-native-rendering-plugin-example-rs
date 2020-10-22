@@ -3,6 +3,9 @@ mod render_api;
 #[cfg(target_os = "windows")]
 mod render_api_d3d11;
 
+#[cfg(target_os = "windows")]
+mod win_util;
+
 #[cfg(target_feature = "vulkan")]
 mod render_api_vulkan;
 
