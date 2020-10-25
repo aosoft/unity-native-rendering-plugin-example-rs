@@ -40,6 +40,7 @@ unity_native_plugin::unity_native_plugin_entry_point! {
 
 static mut TIME: f32 = 0.0;
 
+#[no_mangle]
 #[allow(non_snake_case)]
 pub extern "system" fn SetTimeFromUnity(t: f32) {
     unsafe {
@@ -51,6 +52,7 @@ static mut TEXTURE_HANDLE: render_api::Handle = std::ptr::null_mut();
 static mut TEXTURE_WIDTTH: i32 = 0;
 static mut TEXTURE_HEIGHT: i32 = 0;
 
+#[no_mangle]
 #[allow(non_snake_case)]
 pub extern "system" fn SetTextureFromUnity(handle: render_api::Handle, w: i32, h: i32) {
     unsafe {
@@ -73,6 +75,7 @@ struct MeshVertex {
 
 static mut VERTEX_SOURCE: Vec<MeshVertex> = Vec::<MeshVertex>::new();
 
+#[no_mangle]
 #[allow(non_snake_case)]
 pub extern "system" fn SetMeshBuffersFromUnity(
     handle: render_api::Handle,
@@ -290,6 +293,7 @@ extern "system" fn on_render_event(_: std::os::raw::c_int) {
     modify_vertex_buffer();
 }
 
+#[no_mangle]
 #[allow(non_snake_case)]
 pub extern "system" fn GetRenderEventFunc() -> unity_native_plugin::graphics::RenderingEvent {
     Some(on_render_event)

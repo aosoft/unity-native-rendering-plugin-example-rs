@@ -1,5 +1,6 @@
 [package]
-name = "unity-native-rendering-plugin-example-rs"
+#name = "unity-native-rendering-plugin-example-rs"
+name = "RenderingPlugin"
 version = "0.4.0"
 authors = ["Yasuhiro Taniuchi"]
 edition = "2018"
