@@ -195,38 +195,39 @@ fn modify_texture_pixels() {
     }
 
     if let Some(api) = unsafe { CURRENT_API.as_ref() } {
-        let buffer = api.begin_modify_texture(handle, width, height);
-        if buffer.ptr().is_null() {
-            return;
-        }
-
-        let t = unsafe { TIME } * 4.0;
-
+        let mut buffer = api.begin_modify_texture(handle, width, height);
         unsafe {
-            let mut dst = buffer.ptr() as *mut u8;
-            for y in 0..height {
-                let mut ptr = dst;
-                for x in 0..width {
-                    let vv: i32 = ((127.0 + (127.0 * (x as f32 / 7.0 + t).sin()))
-                        + (127.0 + (127.0 * (y as f32 / 5.0 - t).sin()))
-                        + (127.0 + (127.0 * ((x + y) as f32 / 6.0 - t).sin()))
-                        + (127.0 + (127.0 * (((x * x + y * y) as f32).sqrt() / 4.0 - t).sin())))
-                        as i32
-                        / 4;
-                    *ptr = vv as u8;
-                    ptr = ptr.offset(1);
-                    *ptr = vv as u8;
-                    ptr = ptr.offset(1);
-                    *ptr = vv as u8;
-                    ptr = ptr.offset(1);
-                    *ptr = vv as u8;
-                    ptr = ptr.offset(1);
-                }
+            if buffer.ptr().is_null() {
+                return;
+            }
 
-                dst = dst.offset(buffer.row_pitch() as isize);
+            let t = unsafe { TIME } * 4.0;
+
+            unsafe {
+                let mut dst = buffer.mut_ptr() as *mut u8;
+                for y in 0..height {
+                    let mut ptr = dst;
+                    for x in 0..width {
+                        let vv: i32 = ((127.0 + (127.0 * (x as f32 / 7.0 + t).sin()))
+                            + (127.0 + (127.0 * (y as f32 / 5.0 - t).sin()))
+                            + (127.0 + (127.0 * ((x + y) as f32 / 6.0 - t).sin()))
+                            + (127.0 + (127.0 * (((x * x + y * y) as f32).sqrt() / 4.0 - t).sin())))
+                            as i32
+                            / 4;
+                        *ptr = vv as u8;
+                        ptr = ptr.offset(1);
+                        *ptr = vv as u8;
+                        ptr = ptr.offset(1);
+                        *ptr = vv as u8;
+                        ptr = ptr.offset(1);
+                        *ptr = vv as u8;
+                        ptr = ptr.offset(1);
+                    }
+
+                    dst = dst.offset(buffer.row_pitch() as isize);
+                }
             }
         }
-
         api.end_modify_texture(handle, width, height, buffer);
     }
 }
@@ -235,30 +236,32 @@ fn modify_vertex_buffer() {
     let handle = unsafe { VERTEX_BUFFER_HANDLE };
     let vertex_count = unsafe { VERTEX_BUFFER_VERTEX_COUNT };
     if let Some(api) = unsafe { CURRENT_API.as_ref() } {
-        let buffer = api.begin_modify_vertex_buffer(handle);
-        if buffer.ptr().is_null() {
-            return;
-        }
-        let vertex_stride = buffer.size() / vertex_count;
-        let t = unsafe { TIME } * 3.0;
-
+        let mut buffer = api.begin_modify_vertex_buffer(handle);
         unsafe {
-            let mut buffer_ptr = buffer.ptr() as *mut u8;
-            for i in 0..vertex_count {
-                let src = &VERTEX_SOURCE[i as usize];
-                let mut dst = &mut *(buffer_ptr as *mut MeshVertex);
-                dst.pos[0] = src.pos[0];
-                dst.pos[1] = src.pos[1]
-                    + (src.pos[0] * 1.1 + t).sin() * 0.4
-                    + (src.pos[2] * 0.9 - t).sin() * 0.3;
-                dst.pos[2] = src.pos[2];
-                dst.normal[0] = src.normal[0];
-                dst.normal[1] = src.normal[1];
-                dst.normal[2] = src.normal[2];
-                dst.uv[0] = src.uv[0];
-                dst.uv[1] = src.uv[1];
+            if buffer.ptr().is_null() {
+                return;
+            }
+            let vertex_stride = buffer.size() / vertex_count;
+            let t = unsafe { TIME } * 3.0;
 
-                buffer_ptr = buffer_ptr.offset(vertex_stride as isize);
+            unsafe {
+                let mut buffer_ptr = buffer.mut_ptr() as *mut u8;
+                for i in 0..vertex_count {
+                    let src = &VERTEX_SOURCE[i as usize];
+                    let mut dst = &mut *(buffer_ptr as *mut MeshVertex);
+                    dst.pos[0] = src.pos[0];
+                    dst.pos[1] = src.pos[1]
+                        + (src.pos[0] * 1.1 + t).sin() * 0.4
+                        + (src.pos[2] * 0.9 - t).sin() * 0.3;
+                    dst.pos[2] = src.pos[2];
+                    dst.normal[0] = src.normal[0];
+                    dst.normal[1] = src.normal[1];
+                    dst.normal[2] = src.normal[2];
+                    dst.uv[0] = src.uv[0];
+                    dst.uv[1] = src.uv[1];
+
+                    buffer_ptr = buffer_ptr.offset(vertex_stride as isize);
+                }
             }
         }
 

@@ -1,4 +1,5 @@
-use crate::render_api::{MyVertex, RenderAPI, TextureBuffer, VertexBuffer};
+use crate::render_api;
+use crate::render_api::RenderAPI;
 use crate::win_util;
 use unity_native_plugin::graphics::GfxDeviceEventType;
 use unity_native_plugin::interface::UnityInterfaces;
@@ -9,6 +10,66 @@ use winapi::shared::winerror::*;
 use winapi::um::d3d11::*;
 use winapi::um::d3dcommon::*;
 use wio::com::ComPtr;
+
+pub struct TextureBuffer {
+    buffer: Vec<u8>,
+    row_ptch: i32,
+}
+
+impl TextureBuffer {
+    pub fn new(buffer_size: usize, row_pitch: i32) -> TextureBuffer {
+        let mut buf = Vec::<u8>::with_capacity(buffer_size);
+        unsafe {
+            buf.set_len(buffer_size);
+        }
+        TextureBuffer {
+            buffer: buf,
+            row_ptch: row_pitch,
+        }
+    }
+}
+
+impl render_api::TextureBuffer for TextureBuffer {
+    unsafe fn ptr(&self) -> *const std::ffi::c_void {
+        self.buffer.as_ptr() as _
+    }
+
+    unsafe fn mut_ptr(&mut self) -> *mut std::ffi::c_void {
+        self.buffer.as_mut_ptr() as _
+    }
+
+    fn row_pitch(&self) -> i32 {
+        self.row_ptch
+    }
+}
+
+pub struct VertexBuffer {
+    buffer: Vec<u8>,
+}
+
+impl VertexBuffer {
+    pub fn new(buffer_size: usize) -> VertexBuffer {
+        let mut buf = Vec::<u8>::with_capacity(buffer_size);
+        unsafe {
+            buf.set_len(buffer_size);
+        }
+        VertexBuffer { buffer: buf }
+    }
+}
+
+impl render_api::VertexBuffer for VertexBuffer {
+    unsafe fn ptr(&self) -> *const std::ffi::c_void {
+        self.buffer.as_ptr() as _
+    }
+
+    unsafe fn mut_ptr(&mut self) -> *mut std::ffi::c_void {
+        self.buffer.as_mut_ptr() as _
+    }
+
+    fn size(&self) -> i32 {
+        self.buffer.len() as i32
+    }
+}
 
 pub struct RenderAPID3D11 {
     device: Option<ComPtr<ID3D11Device>>,
@@ -26,7 +87,7 @@ impl Drop for RenderAPID3D11 {
     fn drop(&mut self) {}
 }
 
-impl crate::render_api::RenderAPI for RenderAPID3D11 {
+impl render_api::RenderAPI for RenderAPID3D11 {
     fn process_device_event(
         &mut self,
         event_type: GfxDeviceEventType,
@@ -59,7 +120,7 @@ impl crate::render_api::RenderAPI for RenderAPID3D11 {
         &self,
         world_matrix: [f32; 16],
         triangle_count: i32,
-        vertices_float3_byte4: &[MyVertex],
+        vertices_float3_byte4: &[render_api::MyVertex],
     ) {
         if let Some(device) = &self.device {
             unsafe {
@@ -120,8 +181,12 @@ impl crate::render_api::RenderAPI for RenderAPID3D11 {
         texture_handle: *mut c_void,
         texture_width: i32,
         texture_height: i32,
-    ) -> Box<dyn TextureBuffer> {
-        unimplemented!()
+    ) -> Box<dyn render_api::TextureBuffer> {
+        let row_pitch = texture_width * 4;
+        Box::new(TextureBuffer::new(
+            (row_pitch * texture_height) as usize,
+            row_pitch,
+        ))
     }
 
     fn end_modify_texture(
@@ -129,12 +194,28 @@ impl crate::render_api::RenderAPI for RenderAPID3D11 {
         texture_handle: *mut c_void,
         texture_width: i32,
         texture_height: i32,
-        buffer: Box<dyn TextureBuffer>,
+        buffer: Box<dyn render_api::TextureBuffer>,
     ) {
-        unimplemented!()
+        let d3dtex = texture_handle as *mut ID3D11Texture2D;
+        if let Some(device) = &self.device {
+            unsafe {
+                let ctx = win_util::get_comptr(|ret| device.GetImmediateContext(ret));
+                ctx.UpdateSubresource(
+                    d3dtex as _,
+                    0,
+                    std::ptr::null(),
+                    buffer.ptr(),
+                    buffer.row_pitch() as u32,
+                    0,
+                );
+            }
+        }
     }
 
-    fn begin_modify_vertex_buffer(&self, buffer_handle: *mut c_void) -> Box<dyn VertexBuffer> {
+    fn begin_modify_vertex_buffer(
+        &self,
+        buffer_handle: *mut c_void,
+    ) -> Box<dyn render_api::VertexBuffer> {
         unimplemented!()
     }
 

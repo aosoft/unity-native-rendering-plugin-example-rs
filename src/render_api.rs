@@ -1,12 +1,14 @@
 pub type Handle = *mut std::ffi::c_void;
 
 pub trait TextureBuffer {
-    fn ptr(&self) -> *mut std::ffi::c_void;
+    unsafe fn ptr(&self) -> *const std::ffi::c_void;
+    unsafe fn mut_ptr(&mut self) -> *mut std::ffi::c_void;
     fn row_pitch(&self) -> i32;
 }
 
 pub trait VertexBuffer {
-    fn ptr(&self) -> *mut std::ffi::c_void;
+    unsafe fn ptr(&self) -> *const std::ffi::c_void;
+    unsafe fn mut_ptr(&mut self) -> *mut std::ffi::c_void;
     fn size(&self) -> i32;
 }
 
