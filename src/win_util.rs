@@ -21,11 +21,7 @@ pub unsafe fn get_comptr_with_result<T: winapi::Interface, F: FnOnce(*mut *mut T
     f: F,
 ) -> Result<ComPtr<T>, HRESULT> {
     let mut tmp: *mut T = std::ptr::null_mut();
-    let hr = f(&mut tmp);
-    if SUCCEEDED(hr) {
-        Ok(ComPtr::<T>::from_raw(tmp))
-    } else {
-        Err(hr)
-    }
+    check_hr(f(&mut tmp))?;
+    Ok(ComPtr::<T>::from_raw(tmp))
 }
 

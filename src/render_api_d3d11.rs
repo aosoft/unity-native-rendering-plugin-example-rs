@@ -96,7 +96,9 @@ impl render_api::RenderAPI for RenderAPID3D11 {
                 self.device =
                     unsafe { Some(ComPtr::from_raw(intf.unwrap().device() as *mut ID3D11Device)) };
                 unsafe { self.device.as_ref().unwrap().AddRef() };
-                self.create_resources();
+                if let Err(_) = self.create_resources() {
+                    //  TODO:
+                }
             }
             GfxDeviceEventType::Shutdown => self.release_resources(),
             _ => {}
@@ -175,7 +177,7 @@ impl render_api::RenderAPI for RenderAPID3D11 {
 
     fn begin_modify_texture(
         &self,
-        texture_handle: *mut c_void,
+        _: *mut c_void,
         texture_width: i32,
         texture_height: i32,
     ) -> Option<Box<dyn render_api::TextureBuffer>> {
@@ -297,7 +299,7 @@ impl RenderAPID3D11 {
                     )
                 })?);
 
-                if let Some(vs) = &self.vertex_shader {
+                if (&self.vertex_shader).is_some() {
                     let desc = [
                         D3D11_INPUT_ELEMENT_DESC {
                             SemanticName: "POSITION\0".as_ptr() as _,

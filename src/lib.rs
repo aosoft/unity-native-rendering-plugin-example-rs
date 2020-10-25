@@ -210,36 +210,34 @@ fn modify_texture_pixels() {
         }
         if let Some(api) = CURRENT_API.as_ref() {
             if let Some(mut buffer) = api.begin_modify_texture(handle, width, height) {
-                unsafe {
-                    if buffer.ptr().is_null() {
-                        return;
+                if buffer.ptr().is_null() {
+                    return;
+                }
+
+                let t = TIME * 4.0;
+
+                let mut dst = buffer.mut_ptr() as *mut u8;
+                for y in 0..height {
+                    let mut ptr = dst;
+                    for x in 0..width {
+                        let vv: i32 = ((127.0 + (127.0 * (x as f32 / 7.0 + t).sin()))
+                            + (127.0 + (127.0 * (y as f32 / 5.0 - t).sin()))
+                            + (127.0 + (127.0 * ((x + y) as f32 / 6.0 - t).sin()))
+                            + (127.0
+                                + (127.0 * (((x * x + y * y) as f32).sqrt() / 4.0 - t).sin())))
+                            as i32
+                            / 4;
+                        *ptr = vv as u8;
+                        ptr = ptr.offset(1);
+                        *ptr = vv as u8;
+                        ptr = ptr.offset(1);
+                        *ptr = vv as u8;
+                        ptr = ptr.offset(1);
+                        *ptr = vv as u8;
+                        ptr = ptr.offset(1);
                     }
 
-                    let t = TIME * 4.0;
-
-                    let mut dst = buffer.mut_ptr() as *mut u8;
-                    for y in 0..height {
-                        let mut ptr = dst;
-                        for x in 0..width {
-                            let vv: i32 = ((127.0 + (127.0 * (x as f32 / 7.0 + t).sin()))
-                                + (127.0 + (127.0 * (y as f32 / 5.0 - t).sin()))
-                                + (127.0 + (127.0 * ((x + y) as f32 / 6.0 - t).sin()))
-                                + (127.0
-                                    + (127.0 * (((x * x + y * y) as f32).sqrt() / 4.0 - t).sin())))
-                                as i32
-                                / 4;
-                            *ptr = vv as u8;
-                            ptr = ptr.offset(1);
-                            *ptr = vv as u8;
-                            ptr = ptr.offset(1);
-                            *ptr = vv as u8;
-                            ptr = ptr.offset(1);
-                            *ptr = vv as u8;
-                            ptr = ptr.offset(1);
-                        }
-
-                        dst = dst.offset(buffer.row_pitch() as isize);
-                    }
+                    dst = dst.offset(buffer.row_pitch() as isize);
                 }
                 api.end_modify_texture(handle, width, height, buffer);
             }

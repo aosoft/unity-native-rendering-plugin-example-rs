@@ -1,3 +1,5 @@
+use unity_native_plugin::graphics::GfxRenderer;
+
 pub type Handle = *mut std::ffi::c_void;
 
 pub trait TextureBuffer {
@@ -57,7 +59,10 @@ pub trait RenderAPI: Drop {
 }
 
 pub fn create_render_api(
-    api_type: unity_native_plugin::graphics::GfxRenderer,
+    api_type: GfxRenderer,
 ) -> Option<Box<dyn RenderAPI>> {
-    None
+    match api_type {
+        GfxRenderer::D3D11 => Some(crate::render_api_d3d11::RenderAPID3D11::new()),
+        _ => None
+    }
 }
