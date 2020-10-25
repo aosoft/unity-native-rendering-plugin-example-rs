@@ -44,30 +44,27 @@ impl render_api::TextureBuffer for TextureBuffer {
 }
 
 pub struct VertexBuffer {
-    buffer: Vec<u8>,
+    buffer: *mut u8,
+    buffer_size: i32,
 }
 
 impl VertexBuffer {
-    pub fn new(buffer_size: usize) -> VertexBuffer {
-        let mut buf = Vec::<u8>::with_capacity(buffer_size);
-        unsafe {
-            buf.set_len(buffer_size);
-        }
-        VertexBuffer { buffer: buf }
+    pub fn new(buffer: *mut u8, buffer_size: i32) -> VertexBuffer {
+        VertexBuffer { buffer: buffer, buffer_size: buffer_size }
     }
 }
 
 impl render_api::VertexBuffer for VertexBuffer {
     unsafe fn ptr(&self) -> *const std::ffi::c_void {
-        self.buffer.as_ptr() as _
+        self.buffer as _
     }
 
     unsafe fn mut_ptr(&mut self) -> *mut std::ffi::c_void {
-        self.buffer.as_mut_ptr() as _
+        self.buffer as _
     }
 
     fn size(&self) -> i32 {
-        self.buffer.len() as i32
+        self.buffer_size
     }
 }
 
@@ -93,7 +90,7 @@ impl render_api::RenderAPI for RenderAPID3D11 {
         event_type: GfxDeviceEventType,
         interfaces: &UnityInterfaces,
     ) {
-        match (event_type) {
+        match event_type {
             GfxDeviceEventType::Initialize => {
                 let intf = interfaces.interface::<unity_native_plugin::d3d11::UnityGraphicsD3D11>();
                 self.device =
@@ -181,24 +178,24 @@ impl render_api::RenderAPI for RenderAPID3D11 {
         texture_handle: *mut c_void,
         texture_width: i32,
         texture_height: i32,
-    ) -> Box<dyn render_api::TextureBuffer> {
+    ) -> Option<Box<dyn render_api::TextureBuffer>> {
         let row_pitch = texture_width * 4;
-        Box::new(TextureBuffer::new(
+        Some(Box::new(TextureBuffer::new(
             (row_pitch * texture_height) as usize,
             row_pitch,
-        ))
+        )))
     }
 
     fn end_modify_texture(
         &self,
         texture_handle: *mut c_void,
-        texture_width: i32,
-        texture_height: i32,
+        _: i32,
+        _: i32,
         buffer: Box<dyn render_api::TextureBuffer>,
     ) {
-        let d3dtex = texture_handle as *mut ID3D11Texture2D;
         if let Some(device) = &self.device {
             unsafe {
+                let d3dtex = texture_handle as *mut ID3D11Texture2D;
                 let ctx = win_util::get_comptr(|ret| device.GetImmediateContext(ret));
                 ctx.UpdateSubresource(
                     d3dtex as _,
@@ -215,12 +212,31 @@ impl render_api::RenderAPI for RenderAPID3D11 {
     fn begin_modify_vertex_buffer(
         &self,
         buffer_handle: *mut c_void,
-    ) -> Box<dyn render_api::VertexBuffer> {
-        unimplemented!()
+    ) -> Option<Box<dyn render_api::VertexBuffer>> {
+        if let Some(device) = &self.device {
+            unsafe {
+                let d3dbuf = buffer_handle as *mut ID3D11Buffer;
+
+                let mut desc = std::mem::zeroed::<D3D11_BUFFER_DESC>();
+                (*d3dbuf).GetDesc(&mut desc);
+                let ctx = win_util::get_comptr(|ret| device.GetImmediateContext(ret));
+                let mut mapped = std::mem::zeroed::<D3D11_MAPPED_SUBRESOURCE>();
+                ctx.Map(d3dbuf as _, 0, D3D11_MAP_WRITE_DISCARD, 0, &mut mapped);
+                Some(Box::new(VertexBuffer::new(mapped.pData as _, desc.ByteWidth as _)))
+            }
+        } else {
+            None
+        }
     }
 
     fn end_modify_vertex_buffer(&self, buffer_handle: *mut c_void) {
-        unimplemented!()
+        if let Some(device) = &self.device {
+            unsafe {
+                let d3dbuf = buffer_handle as *mut ID3D11Buffer;
+                let ctx = win_util::get_comptr(|ret| device.GetImmediateContext(ret));
+                ctx.Unmap(d3dbuf as _, 0);
+            }
+        }
     }
 }
 

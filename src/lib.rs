@@ -177,8 +177,22 @@ fn draw_colored_triangle() {
             depth
         };
         let world_matrix = [
-            cos_phi, -sin_phi, 0.0, 0.0, sin_phi, cos_phi, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0,
-            final_depth, 1.0,
+            cos_phi,
+            -sin_phi,
+            0.0,
+            0.0,
+            sin_phi,
+            cos_phi,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0,
+            0.0,
+            0.0,
+            0.0,
+            final_depth,
+            1.0,
         ];
 
         api.draw_simple_triangles(world_matrix, 1, &verts);
@@ -186,65 +200,65 @@ fn draw_colored_triangle() {
 }
 
 fn modify_texture_pixels() {
-    let handle = unsafe { TEXTURE_HANDLE };
-    let width = unsafe { TEXTURE_WIDTTH };
-    let height = unsafe { TEXTURE_HEIGHT };
+    unsafe {
+        let handle = TEXTURE_HANDLE;
+        let width = TEXTURE_WIDTTH;
+        let height = TEXTURE_HEIGHT;
 
-    if handle.is_null() {
-        return;
-    }
-
-    if let Some(api) = unsafe { CURRENT_API.as_ref() } {
-        let mut buffer = api.begin_modify_texture(handle, width, height);
-        unsafe {
-            if buffer.ptr().is_null() {
-                return;
-            }
-
-            let t = unsafe { TIME } * 4.0;
-
-            unsafe {
-                let mut dst = buffer.mut_ptr() as *mut u8;
-                for y in 0..height {
-                    let mut ptr = dst;
-                    for x in 0..width {
-                        let vv: i32 = ((127.0 + (127.0 * (x as f32 / 7.0 + t).sin()))
-                            + (127.0 + (127.0 * (y as f32 / 5.0 - t).sin()))
-                            + (127.0 + (127.0 * ((x + y) as f32 / 6.0 - t).sin()))
-                            + (127.0 + (127.0 * (((x * x + y * y) as f32).sqrt() / 4.0 - t).sin())))
-                            as i32
-                            / 4;
-                        *ptr = vv as u8;
-                        ptr = ptr.offset(1);
-                        *ptr = vv as u8;
-                        ptr = ptr.offset(1);
-                        *ptr = vv as u8;
-                        ptr = ptr.offset(1);
-                        *ptr = vv as u8;
-                        ptr = ptr.offset(1);
+        if handle.is_null() {
+            return;
+        }
+        if let Some(api) = CURRENT_API.as_ref() {
+            if let Some(mut buffer) = api.begin_modify_texture(handle, width, height) {
+                unsafe {
+                    if buffer.ptr().is_null() {
+                        return;
                     }
 
-                    dst = dst.offset(buffer.row_pitch() as isize);
+                    let t = TIME * 4.0;
+
+                    let mut dst = buffer.mut_ptr() as *mut u8;
+                    for y in 0..height {
+                        let mut ptr = dst;
+                        for x in 0..width {
+                            let vv: i32 = ((127.0 + (127.0 * (x as f32 / 7.0 + t).sin()))
+                                + (127.0 + (127.0 * (y as f32 / 5.0 - t).sin()))
+                                + (127.0 + (127.0 * ((x + y) as f32 / 6.0 - t).sin()))
+                                + (127.0
+                                    + (127.0 * (((x * x + y * y) as f32).sqrt() / 4.0 - t).sin())))
+                                as i32
+                                / 4;
+                            *ptr = vv as u8;
+                            ptr = ptr.offset(1);
+                            *ptr = vv as u8;
+                            ptr = ptr.offset(1);
+                            *ptr = vv as u8;
+                            ptr = ptr.offset(1);
+                            *ptr = vv as u8;
+                            ptr = ptr.offset(1);
+                        }
+
+                        dst = dst.offset(buffer.row_pitch() as isize);
+                    }
                 }
+                api.end_modify_texture(handle, width, height, buffer);
             }
         }
-        api.end_modify_texture(handle, width, height, buffer);
     }
 }
 
 fn modify_vertex_buffer() {
-    let handle = unsafe { VERTEX_BUFFER_HANDLE };
-    let vertex_count = unsafe { VERTEX_BUFFER_VERTEX_COUNT };
-    if let Some(api) = unsafe { CURRENT_API.as_ref() } {
-        let mut buffer = api.begin_modify_vertex_buffer(handle);
-        unsafe {
-            if buffer.ptr().is_null() {
-                return;
-            }
-            let vertex_stride = buffer.size() / vertex_count;
-            let t = unsafe { TIME } * 3.0;
+    unsafe {
+        let handle = VERTEX_BUFFER_HANDLE;
+        let vertex_count = VERTEX_BUFFER_VERTEX_COUNT;
+        if let Some(api) = CURRENT_API.as_ref() {
+            if let Some(mut buffer) = api.begin_modify_vertex_buffer(handle) {
+                if buffer.ptr().is_null() {
+                    return;
+                }
+                let vertex_stride = buffer.size() / vertex_count;
+                let t = TIME * 3.0;
 
-            unsafe {
                 let mut buffer_ptr = buffer.mut_ptr() as *mut u8;
                 for i in 0..vertex_count {
                     let src = &VERTEX_SOURCE[i as usize];
@@ -263,9 +277,8 @@ fn modify_vertex_buffer() {
                     buffer_ptr = buffer_ptr.offset(vertex_stride as isize);
                 }
             }
+            api.end_modify_vertex_buffer(handle);
         }
-
-        api.end_modify_vertex_buffer(handle);
     }
 }
 

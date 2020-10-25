@@ -41,7 +41,7 @@ pub trait RenderAPI: Drop {
         texture_handle: Handle,
         texture_width: i32,
         texture_height: i32,
-    ) -> Box<dyn TextureBuffer>;
+    ) -> Option<Box<dyn TextureBuffer>>;
 
     fn end_modify_texture(
         &self,
@@ -51,7 +51,7 @@ pub trait RenderAPI: Drop {
         buffer: Box<dyn TextureBuffer>,
     );
 
-    fn begin_modify_vertex_buffer(&self, buffer_handle: Handle) -> Box<dyn VertexBuffer>;
+    fn begin_modify_vertex_buffer(&self, buffer_handle: Handle) -> Option<Box<dyn VertexBuffer>>;
 
     fn end_modify_vertex_buffer(&self, buffer_handle: Handle);
 }
