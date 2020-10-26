@@ -142,7 +142,8 @@ impl render_api::RenderAPI for RenderAPID3D11 {
                     0,
                 );
 
-                ctx.VSSetConstantBuffers(0, 1, self.cb.as_ref().unwrap().as_raw() as _);
+                let buffers = [self.cb.as_ref().unwrap().as_raw()];
+                ctx.VSSetConstantBuffers(0, buffers.len() as u32, buffers.as_ptr());
                 ctx.VSSetShader(
                     self.vertex_shader.as_ref().unwrap().as_raw(),
                     std::ptr::null(),
