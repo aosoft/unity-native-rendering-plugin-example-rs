@@ -314,6 +314,7 @@ fn test_modify_texture_pixels() {
             modify_texture_pixels();
             unity_native_plugin_tester::window::LoopResult::Continue
         },
+        |_, _| {},
         unity_plugin_load,
         unity_plugin_unload,
     )
