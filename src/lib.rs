@@ -226,8 +226,7 @@ fn modify_texture_pixels() {
                         let vv: i32 = ((127.0 + (127.0 * (x as f32 / 7.0 + t).sin()))
                             + (127.0 + (127.0 * (y as f32 / 5.0 - t).sin()))
                             + (127.0 + (127.0 * ((x + y) as f32 / 6.0 - t).sin()))
-                            + (127.0
-                                + (127.0 * (((x * x + y * y) as f32).sqrt() / 4.0 - t).sin())))
+                            + (127.0 + (127.0 * (((x * x + y * y) as f32).sqrt() / 4.0 - t).sin())))
                             as i32
                             / 4;
                         *ptr = vv as u8;
@@ -297,4 +296,26 @@ extern "system" fn on_render_event(_: std::os::raw::c_int) {
 #[allow(non_snake_case)]
 pub extern "system" fn GetRenderEventFunc() -> unity_native_plugin::graphics::RenderingEvent {
     Some(on_render_event)
+}
+
+#[test]
+fn test_modify_texture_pixels() {
+    let instant = std::time::Instant::now();
+    unity_native_plugin_tester::d3d11::test_plugin_d3d11(
+        |window, context| {
+            SetTextureFromUnity(
+                context.back_buffer().as_raw() as _,
+                context.back_buffer_desc().Width as _,
+                context.back_buffer_desc().Height as _,
+            );
+        },
+        |window, context| {
+            SetTimeFromUnity(instant.elapsed().as_secs_f32());
+            modify_texture_pixels();
+            unity_native_plugin_tester::window::LoopResult::Continue
+        },
+        unity_plugin_load,
+        unity_plugin_unload,
+    )
+    .unwrap();
 }
