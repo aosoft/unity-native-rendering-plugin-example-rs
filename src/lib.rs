@@ -302,6 +302,7 @@ pub extern "system" fn GetRenderEventFunc() -> unity_native_plugin::graphics::Re
 fn test_modify_texture_pixels() {
     let instant = std::time::Instant::now();
     unity_native_plugin_tester::d3d11::test_plugin_d3d11(
+        (256, 256),
         |window, context| {
             SetTextureFromUnity(
                 context.back_buffer().as_raw() as _,
@@ -312,7 +313,7 @@ fn test_modify_texture_pixels() {
         |window, context| {
             SetTimeFromUnity(instant.elapsed().as_secs_f32());
             modify_texture_pixels();
-            unity_native_plugin_tester::window::LoopResult::Continue
+            unity_native_plugin_tester::window::LoopResult::ContinueOnWindowEvent
         },
         |_, _| {},
         unity_plugin_load,
