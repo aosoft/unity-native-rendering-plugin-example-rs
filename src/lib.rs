@@ -303,14 +303,14 @@ fn test_modify_texture_pixels() {
     let instant = std::time::Instant::now();
     unity_native_plugin_tester::d3d11::test_plugin_d3d11(
         (256, 256),
-        |window, context| {
+        |_window, context| {
             SetTextureFromUnity(
                 context.back_buffer().as_raw() as _,
                 context.back_buffer_desc().Width as _,
                 context.back_buffer_desc().Height as _,
             );
         },
-        |window, context| {
+        |_window, _context| {
             SetTimeFromUnity(instant.elapsed().as_secs_f32());
             modify_texture_pixels();
             unity_native_plugin_tester::window::LoopResult::ContinueOnWindowEvent
